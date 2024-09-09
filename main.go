@@ -1,10 +1,13 @@
 package main
 
-import "database/sql"
+import (
+	"database/sql"
+	conn "ecommerce/utils/dbconnection"
+)
 
 var db *sql.DB
 
 func main() {
-	connection()
+	conn.Connection()
 	router()
 }

@@ -18,7 +18,6 @@ func usernameExists(username string) bool {
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM storage WHERE username = $1)", username).Scan(&exists)
 	if err != nil && err != sql.ErrNoRows {
-		// Handle error
 		return false
 	}
 	return exists

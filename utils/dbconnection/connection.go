@@ -1,4 +1,4 @@
-package main
+package dbconnection
 
 import (
 	"database/sql"
@@ -8,7 +8,9 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func connection() *sql.DB {
+var db *sql.DB
+
+func Connection() *sql.DB {
 	dsn := "host=localhost user=postgres password=12345 dbname=postgres port=5432 sslmode=disable"
 	var err error
 	db, err = sql.Open("postgres", dsn)
@@ -107,7 +109,7 @@ func connection() *sql.DB {
 	quantity INT NOT NULL
 	);
 	`)
-	if err != nil{
+	if err != nil {
 		log.Fatal("Failed to create table", err)
 	}
 	fmt.Println("Product created Successfully")

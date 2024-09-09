@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	cartfunc "ecommerce/packages"
 	"log"
 	"net/http"
 
@@ -15,92 +16,34 @@ func AddToCart(c *gin.Context) {
 		return
 	}
 
-	var productQuantity int
-	err := db.QueryRow("SELECT quantity FROM product WHERE id = $1", a.ProductID).Scan(&productQuantity)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrive product quantity"})
+	if err := cartfunc.Add(cartfunc.Cart{}, db); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	if productQuantity < a.Quantity {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Not enough quantity available"})
-		return
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
-		return
-	}
-
-	var currentQuentity int
-	err = tx.QueryRow("SELECT quantity FROM cart WHERE user_id = $1 AND product_id = $2", a.UserID, a.ProductID).Scan(&currentQuentity)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			_, err = tx.Exec("INSERT INTO cart (user_id, product_id, types, quantity, price) VALUES ($1, $2, $3, $4, $5)", a.UserID, a.ProductID, a.Types, a.Quantity, a.Price)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add to cart"})
-				return
-			}
-		} else {
-			_, err = tx.Exec("UPDATE cart SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3", a.Quantity, a.UserID, a.ProductID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update cart"})
-				return
-			}
-		}
-
-		_, err = tx.Exec("UPDATE product SET quantity = quantity - $1 WHERE id =$2", a.Quantity, a.ProductID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product quality"})
-			return
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "successfully added to cart"})
-	}
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully removed from cart"})
 }
 
 func RemoveItem(c *gin.Context) {
-	var a Cart
+	var a struct {
+		UserID    int    `json:"user_id"`
+		ProductID int    `json:"product_id"`
+		Quantity  int    `json:"quantity"`
+		Types     string `json:"types"`
+	}
+
 	if err := c.ShouldBind(&a); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
-	var productQuantity int
-	err := db.QueryRow("SELECT quantity FROM product WHERE id $1", a.ProductID).Scan(&productQuantity)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrive product quantity"})
+	if err := cartfunc.Remove(cartfunc.Cart{}, db); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	if productQuantity > a.Quantity {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Quantity is wrong"})
-		return
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
-		return
-	}
-
-	var currentQuentity int
-	err = tx.QueryRow("SELECT quantity FROM cart user_id = $1 AND product_id = $2", a.UserID, a.ProductID).Scan(&currentQuentity)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			_, err = 
-		}
-	}
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully removed from cart"})
 }
 
 func BuyFromCart(c *gin.Context) {
-
 	var a struct {
 		UserID int `json:"user_id"`
 	}
@@ -108,51 +51,11 @@ func BuyFromCart(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+	var db *sql.DB
+	if err := cartfunc.Buy(a.UserID, db); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	rows, err := tx.Query("SELECT product_id, quantity FROM cart WHERE user_id = $1", a.UserID)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get cart item"})
-		return
-	}
-	rows.Close()
-
-	for rows.Next() {
-		var (
-			productID, quantity int
-		)
-		if err := rows.Scan(&productID, &quantity); err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan cart item"})
-			return
-		}
-
-		_, err = tx.Exec("UPDATE product SET quantity = quantity - $1 WHERE id = $2", quantity, productID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product inventory"})
-			return
-		}
-	}
-
-	_, err = tx.Exec("UPDATE cart SET status = 'purchased' WHERE user_id = $1", a.UserID)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update cart"})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully purchased from cart"})
 }
 

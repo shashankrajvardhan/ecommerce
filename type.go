@@ -61,4 +61,3 @@ type Cart struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-// "DELETE FROM cart WHERE user_id = $1 AND product_id = $2", a.UserID, a.ProductID
